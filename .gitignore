@@ -1,0 +1,25 @@
+# Binarios de Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Binario de pacer
+/pacer
+/bin/
+
+# Cobertura
+coverage.out
+coverage.html
+*.coverprofile
+
+# Secretos locales
+.env
+.env.*
+
+# Local planning artifacts (not published)
+openspec/
+.atl/
