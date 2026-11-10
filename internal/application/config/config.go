@@ -1,14 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
 
-type Budget struct {
-	ActiveHours          int
-	MaxParallel          int
-	Cutoff               string
-	MinFocusBlocks       int
-	FocusBlockMinMinutes int
-}
+	"github.com/joserestrepo/pacer-cli/internal/domain"
+)
 
 type Checkin struct {
 	Reminder      bool
@@ -23,14 +19,14 @@ type Alerts struct {
 }
 
 type Config struct {
-	Budget  Budget
+	Budget  domain.Budget
 	Checkin Checkin
 	Alerts  Alerts
 }
 
 func Defaults() Config {
 	return Config{
-		Budget: Budget{
+		Budget: domain.Budget{
 			ActiveHours:          6,
 			MaxParallel:          2,
 			Cutoff:               "19:00",

@@ -1,7 +1,8 @@
-// Package archtest enforces the hexagonal dependency rule: the core
-// (internal/core) must not know about adapters or IO libraries. `internal/`
-// only blocks imports across modules, so without this test the compiler
-// would not catch a violation.
+// Package archtest enforces the hexagonal dependency rule: the domain
+// (internal/domain) and the application (internal/application) must not know
+// about infrastructure or IO libraries. `internal/` only blocks imports
+// across modules, so without this test the compiler would not catch a
+// violation.
 package archtest
 
 import (
@@ -16,12 +17,13 @@ import (
 const modulePath = "github.com/joserestrepo/pacer-cli"
 
 const (
-	corePrefix     = modulePath + "/internal/core"
-	adaptersPrefix = modulePath + "/internal/adapters"
-	i18nPrefix     = adaptersPrefix + "/i18n"
+	domainPrefix         = modulePath + "/internal/domain"
+	applicationPrefix    = modulePath + "/internal/application"
+	infrastructurePrefix = modulePath + "/internal/infrastructure"
+	i18nPrefix           = infrastructurePrefix + "/i18n"
 )
 
-// IO libraries forbidden inside the core.
+// IO libraries forbidden inside the domain and the application.
 var ioLibs = []string{
 	"modernc.org/sqlite",
 	"github.com/godbus/dbus",
@@ -32,23 +34,17 @@ var ioLibs = []string{
 	"github.com/nicksnyder/go-i18n",
 }
 
-// Pure layers must not depend on orchestration layers.
-var pureLayers = []string{
-	corePrefix + "/domain",
-	corePrefix + "/rhythm",
-	corePrefix + "/validation",
+// The domain is the innermost layer: it must not depend on the application.
+var domainForbidden = []string{
+	applicationPrefix,
+	infrastructurePrefix,
 }
 
-var orchestrationLayers = []string{
-	corePrefix + "/app",
-	corePrefix + "/ports",
-}
-
-// i18n is presentation text: it may use core/domain (Lang, Anchor) but never
-// the orchestration layers.
+// i18n is presentation text: it may use the domain (Lang, Anchor) but never
+// the application's ports or use cases.
 var i18nForbidden = []string{
-	corePrefix + "/ports",
-	corePrefix + "/app",
+	applicationPrefix + "/ports",
+	applicationPrefix + "/usecase",
 }
 
 // within reports whether pkg is prefix or a subpackage of it. It compares
@@ -73,22 +69,8 @@ func withinAny(pkg string, prefixes []string) bool {
 func violations(deps map[string][]string) []string {
 	var out []string // nil when there are no violations
 	for pkg, ds := range deps {
-		if within(pkg, i18nPrefix) {
-			for _, d := range ds {
-				if withinAny(d, i18nForbidden) {
-					out = append(out, fmt.Sprintf("%s -> %s", pkg, d))
-				}
-			}
-			continue
-		}
-		if !within(pkg, corePrefix) {
-			continue
-		}
-		pure := withinAny(pkg, pureLayers)
 		for _, d := range ds {
-			forbidden := within(d, adaptersPrefix) || withinAny(d, ioLibs) ||
-				(pure && withinAny(d, orchestrationLayers))
-			if forbidden {
+			if forbidden(pkg, d) {
 				out = append(out, fmt.Sprintf("%s -> %s", pkg, d))
 			}
 		}
@@ -98,15 +80,30 @@ func violations(deps map[string][]string) []string {
 	return out
 }
 
-// TestCoreDependencies is the real check: it asks the Go toolchain for the
-// dependencies of internal/core/... and internal/adapters/i18n/... and applies violations.
-func TestCoreDependencies(t *testing.T) {
+// forbidden reports whether pkg is not allowed to depend on dep. Packages
+// outside domain, application and infrastructure/i18n are not checked.
+func forbidden(pkg, dep string) bool {
+	switch {
+	case within(pkg, domainPrefix):
+		return withinAny(dep, domainForbidden) || withinAny(dep, ioLibs)
+	case within(pkg, applicationPrefix):
+		return within(dep, infrastructurePrefix) || withinAny(dep, ioLibs)
+	case within(pkg, i18nPrefix):
+		return withinAny(dep, i18nForbidden)
+	}
+	return false
+}
+
+// TestDependencies is the real check: it asks the Go toolchain for the
+// dependencies of the checked packages and applies violations.
+func TestDependencies(t *testing.T) {
 	// exec.Command builds the command without running it; Output() runs it
 	// and returns stdout. -e keeps go list from aborting on broken packages
 	// or packages without Go files. {{.Deps}} is the transitive dependency list.
 	cmd := exec.Command("go", "list", "-e", "-deps",
 		"-f", "{{.ImportPath}} {{join .Deps \" \"}}",
-		"./internal/core/...", "./internal/adapters/i18n/...")
+		"./internal/domain/...", "./internal/application/...",
+		"./internal/infrastructure/i18n/...")
 	cmd.Dir = "../.." // module root: tests run in the package directory
 	raw, err := cmd.Output()
 	if err != nil {
@@ -122,10 +119,9 @@ func TestCoreDependencies(t *testing.T) {
 		deps[fields[0]] = fields[1:]
 	}
 
-	// internal/core and internal/adapters/i18n may not exist yet or may have no
-	// Go packages. That is not a failure, there is just nothing to check.
+	// The checked packages may not exist yet or may have no Go packages. That is not a failure, there is just nothing to check.
 	if !hasCheckedPackage(deps) {
-		t.Skip("internal/core and internal/adapters/i18n have no packages yet")
+		t.Skip("domain, application and infrastructure/i18n have no packages yet")
 	}
 
 	if v := violations(deps); len(v) > 0 {
@@ -135,7 +131,7 @@ func TestCoreDependencies(t *testing.T) {
 
 func hasCheckedPackage(deps map[string][]string) bool {
 	for pkg := range deps {
-		if within(pkg, corePrefix) || within(pkg, i18nPrefix) {
+		if within(pkg, domainPrefix) || within(pkg, applicationPrefix) || within(pkg, i18nPrefix) {
 			return true
 		}
 	}
@@ -158,24 +154,82 @@ func TestViolations(t *testing.T) {
 			want: nil,
 		},
 		{
-			name: "clean core",
+			name: "clean layers",
 			deps: map[string][]string{
-				m + "/internal/core/domain": {"time", "fmt"},
-				m + "/internal/core/app":    {m + "/internal/core/domain", m + "/internal/core/ports"},
+				m + "/internal/domain":              {"time", "fmt"},
+				m + "/internal/domain/rhythm":       {m + "/internal/domain"},
+				m + "/internal/application/config":  {m + "/internal/domain"},
+				m + "/internal/application/usecase": {m + "/internal/domain", m + "/internal/application/ports"},
 			},
 			want: nil,
 		},
 		{
-			name: "core depends on adapters",
+			name: "application may depend on domain",
 			deps: map[string][]string{
-				m + "/internal/core/app": {m + "/internal/adapters/sqlite"},
+				m + "/internal/application/config": {m + "/internal/domain"},
 			},
-			want: []string{m + "/internal/core/app -> " + m + "/internal/adapters/sqlite"},
+			want: nil,
 		},
 		{
-			name: "core depends on IO libs",
+			name: "usecase may depend on ports",
 			deps: map[string][]string{
-				m + "/internal/core/app": {
+				m + "/internal/application/usecase": {m + "/internal/application/ports"},
+			},
+			want: nil,
+		},
+		{
+			name: "rhythm may depend on domain",
+			deps: map[string][]string{
+				m + "/internal/domain/rhythm": {m + "/internal/domain"},
+			},
+			want: nil,
+		},
+		{
+			name: "domain depends on application",
+			deps: map[string][]string{
+				m + "/internal/domain": {m + "/internal/application/usecase"},
+			},
+			want: []string{m + "/internal/domain -> " + m + "/internal/application/usecase"},
+		},
+		{
+			name: "rhythm depends on ports",
+			deps: map[string][]string{
+				m + "/internal/domain/rhythm": {m + "/internal/application/ports"},
+			},
+			want: []string{m + "/internal/domain/rhythm -> " + m + "/internal/application/ports"},
+		},
+		{
+			name: "validation depends on config",
+			deps: map[string][]string{
+				m + "/internal/domain/validation": {m + "/internal/application/config"},
+			},
+			want: []string{m + "/internal/domain/validation -> " + m + "/internal/application/config"},
+		},
+		{
+			name: "domain depends on infrastructure",
+			deps: map[string][]string{
+				m + "/internal/domain": {m + "/internal/infrastructure/sqlite"},
+			},
+			want: []string{m + "/internal/domain -> " + m + "/internal/infrastructure/sqlite"},
+		},
+		{
+			name: "application depends on infrastructure",
+			deps: map[string][]string{
+				m + "/internal/application/usecase": {m + "/internal/infrastructure/sqlite"},
+			},
+			want: []string{m + "/internal/application/usecase -> " + m + "/internal/infrastructure/sqlite"},
+		},
+		{
+			name: "application depends on infrastructure/i18n",
+			deps: map[string][]string{
+				m + "/internal/application/usecase": {m + "/internal/infrastructure/i18n"},
+			},
+			want: []string{m + "/internal/application/usecase -> " + m + "/internal/infrastructure/i18n"},
+		},
+		{
+			name: "application depends on IO libs",
+			deps: map[string][]string{
+				m + "/internal/application/usecase": {
 					"modernc.org/sqlite",
 					"github.com/godbus/dbus/v5",
 					"github.com/fsnotify/fsnotify",
@@ -184,86 +238,65 @@ func TestViolations(t *testing.T) {
 				},
 			},
 			want: []string{
-				m + "/internal/core/app -> github.com/BurntSushi/toml",
-				m + "/internal/core/app -> github.com/fsnotify/fsnotify",
-				m + "/internal/core/app -> github.com/godbus/dbus/v5",
-				m + "/internal/core/app -> golang.org/x/term",
-				m + "/internal/core/app -> modernc.org/sqlite",
+				m + "/internal/application/usecase -> github.com/BurntSushi/toml",
+				m + "/internal/application/usecase -> github.com/fsnotify/fsnotify",
+				m + "/internal/application/usecase -> github.com/godbus/dbus/v5",
+				m + "/internal/application/usecase -> golang.org/x/term",
+				m + "/internal/application/usecase -> modernc.org/sqlite",
 			},
 		},
 		{
-			name: "domain depends on app",
+			name: "domain depends on IO libs",
 			deps: map[string][]string{
-				m + "/internal/core/domain": {m + "/internal/core/app"},
+				m + "/internal/domain": {"github.com/BurntSushi/toml"},
 			},
-			want: []string{m + "/internal/core/domain -> " + m + "/internal/core/app"},
+			want: []string{m + "/internal/domain -> github.com/BurntSushi/toml"},
 		},
 		{
-			name: "rhythm depends on ports",
+			name: "application depends on i18n libs",
 			deps: map[string][]string{
-				m + "/internal/core/rhythm": {m + "/internal/core/ports"},
-			},
-			want: []string{m + "/internal/core/rhythm -> " + m + "/internal/core/ports"},
-		},
-		{
-			name: "validation depends on app",
-			deps: map[string][]string{
-				m + "/internal/core/validation": {m + "/internal/core/app"},
-			},
-			want: []string{m + "/internal/core/validation -> " + m + "/internal/core/app"},
-		},
-		{
-			name: "app may depend on ports",
-			deps: map[string][]string{
-				m + "/internal/core/app": {m + "/internal/core/ports"},
-			},
-			want: nil,
-		},
-		{
-			name: "core depends on adapters/i18n",
-			deps: map[string][]string{
-				m + "/internal/core/app": {m + "/internal/adapters/i18n"},
-			},
-			want: []string{m + "/internal/core/app -> " + m + "/internal/adapters/i18n"},
-		},
-		{
-			name: "core depends on i18n libs",
-			deps: map[string][]string{
-				m + "/internal/core/app": {
+				m + "/internal/application/usecase": {
 					"golang.org/x/text/message",
 					"github.com/nicksnyder/go-i18n/v2/i18n",
 				},
 			},
 			want: []string{
-				m + "/internal/core/app -> github.com/nicksnyder/go-i18n/v2/i18n",
-				m + "/internal/core/app -> golang.org/x/text/message",
+				m + "/internal/application/usecase -> github.com/nicksnyder/go-i18n/v2/i18n",
+				m + "/internal/application/usecase -> golang.org/x/text/message",
 			},
 		},
 		{
 			name: "i18n depends on ports",
 			deps: map[string][]string{
-				m + "/internal/adapters/i18n": {m + "/internal/core/ports"},
+				m + "/internal/infrastructure/i18n": {m + "/internal/application/ports"},
 			},
-			want: []string{m + "/internal/adapters/i18n -> " + m + "/internal/core/ports"},
+			want: []string{m + "/internal/infrastructure/i18n -> " + m + "/internal/application/ports"},
 		},
 		{
-			name: "i18n depends on app",
+			name: "i18n depends on usecase",
 			deps: map[string][]string{
-				m + "/internal/adapters/i18n": {m + "/internal/core/app"},
+				m + "/internal/infrastructure/i18n": {m + "/internal/application/usecase"},
 			},
-			want: []string{m + "/internal/adapters/i18n -> " + m + "/internal/core/app"},
+			want: []string{m + "/internal/infrastructure/i18n -> " + m + "/internal/application/usecase"},
 		},
 		{
 			name: "i18n may depend on domain",
 			deps: map[string][]string{
-				m + "/internal/adapters/i18n": {m + "/internal/core/domain", "fmt"},
+				m + "/internal/infrastructure/i18n": {m + "/internal/domain", "fmt"},
 			},
 			want: nil,
 		},
 		{
-			name: "rules do not apply outside core",
+			name: "rules do not apply to other infrastructure",
 			deps: map[string][]string{
-				m + "/internal/adapters/sqlite": {"modernc.org/sqlite"},
+				m + "/internal/infrastructure/sqlite": {"modernc.org/sqlite", m + "/internal/application/ports"},
+			},
+			want: nil,
+		},
+		{
+			name: "rules do not apply to cmd",
+			deps: map[string][]string{
+				m + "/cmd/pacer": {m + "/internal/infrastructure/sqlite", m + "/internal/application/usecase"},
 			},
 			want: nil,
 		},
