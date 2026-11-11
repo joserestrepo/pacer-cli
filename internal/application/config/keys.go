@@ -6,10 +6,11 @@ type Kind int
 
 // Supported value kinds.
 const (
-	KindBool Kind = iota
-	KindInt
-	KindString
-	KindDuration
+	KindBool     Kind = iota // true or false
+	KindInt                  // whole number, e.g. 6
+	KindString               // text, e.g. "19:00"
+	KindDuration             // Go duration, e.g. "60m" or "1h30m"
+	KindFloat                // decimal number, e.g. 0.7
 )
 
 // Key describes one setting the user can read or change by its path, as in
@@ -34,10 +35,17 @@ var Keys = []Key{
 	{Path: "budget.cutoff", Kind: KindString, Get: func(c Config) any { return c.Budget.Cutoff }},
 	{Path: "budget.min_focus_blocks", Kind: KindInt, Get: func(c Config) any { return c.Budget.MinFocusBlocks }},
 	{Path: "budget.focus_block_min_minutes", Kind: KindInt, Get: func(c Config) any { return c.Budget.FocusBlockMinMinutes }},
+	{Path: "alerts.enabled", Kind: KindBool, Get: func(c Config) any { return c.Alerts.Enabled }},
+	{Path: "alerts.cooldown", Kind: KindDuration, Get: func(c Config) any { return c.Alerts.Cooldown }},
+	{Path: "alerts.mode", Kind: KindString, Get: func(c Config) any { return c.Alerts.Mode }},
+	{Path: "alerts.score_threshold", Kind: KindFloat, Get: func(c Config) any { return c.Alerts.ScoreThreshold }},
 	{Path: "checkin.reminder", Kind: KindBool, Get: func(c Config) any { return c.Checkin.Reminder }},
 	{Path: "checkin.reminder_at", Kind: KindString, Get: func(c Config) any { return c.Checkin.ReminderAt }},
 	{Path: "checkin.start_reminder", Kind: KindBool, Get: func(c Config) any { return c.Checkin.StartReminder }},
 	{Path: "checkin.bad_day_min", Kind: KindInt, Get: func(c Config) any { return c.Checkin.BadDayMin }},
-	{Path: "alerts.enabled", Kind: KindBool, Get: func(c Config) any { return c.Alerts.Enabled }},
-	{Path: "alerts.cooldown", Kind: KindDuration, Get: func(c Config) any { return c.Alerts.Cooldown }},
+	{Path: "checkin.actions", Kind: KindBool, Get: func(c Config) any { return c.Checkin.Actions }},
+	{Path: "ingest.poll_interval", Kind: KindDuration, Get: func(c Config) any { return c.Ingest.PollInterval }},
+	{Path: "ingest.idle_gap", Kind: KindDuration, Get: func(c Config) any { return c.Ingest.IdleGap }},
+	{Path: "ingest.count_subagents_as_parallel", Kind: KindBool, Get: func(c Config) any { return c.Ingest.CountSubagentsAsParallel }},
+	{Path: "validation.min_pairs", Kind: KindInt, Get: func(c Config) any { return c.Validation.MinPairs }},
 }

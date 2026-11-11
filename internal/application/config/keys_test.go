@@ -2,6 +2,7 @@ package config
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -37,6 +38,7 @@ func TestKeyKindMatchesValueType(t *testing.T) {
 		KindInt:      reflect.TypeOf(0),
 		KindString:   reflect.TypeOf(""),
 		KindDuration: reflect.TypeOf(time.Duration(0)),
+		KindFloat:    reflect.TypeOf(0.0),
 	}
 
 	c := Defaults()
@@ -48,6 +50,38 @@ func TestKeyKindMatchesValueType(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Every Path must name its field: "checkin.bad_day_min" must read
+// Config.Checkin.BadDayMin. This catches typos such as "checkin.bad_day".
+func TestKeyPathNamesItsField(t *testing.T) {
+	c := reflect.ValueOf(Defaults())
+	for _, k := range Keys {
+		t.Run(k.Path, func(t *testing.T) {
+			section, name, ok := strings.Cut(k.Path, ".")
+			if !ok {
+				t.Fatalf("path %q is not \"section.name\"", k.Path)
+			}
+			field := c.FieldByName(snakeToCamel(section)).FieldByName(snakeToCamel(name))
+			if !field.IsValid() {
+				t.Fatalf("no Config field %s.%s", snakeToCamel(section), snakeToCamel(name))
+			}
+			if got := k.Get(Defaults()); got != field.Interface() {
+				t.Errorf("Get returns %v, but field %s.%s is %v", got, snakeToCamel(section), snakeToCamel(name), field.Interface())
+			}
+		})
+	}
+}
+
+// snakeToCamel turns "bad_day_min" into "BadDayMin".
+func snakeToCamel(s string) string {
+	parts := strings.Split(s, "_")
+	for i, p := range parts {
+		if p != "" {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, "")
 }
 
 // Spot-check that paths point to the right field: Get on Defaults() must

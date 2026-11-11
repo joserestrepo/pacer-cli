@@ -28,6 +28,13 @@ func TestDefaults(t *testing.T) {
 		{"alerts.cooldown", c.Alerts.Cooldown, 60 * time.Minute},
 		{"general.day_starts_at", c.General.DayStartsAt, "04:00"},
 		{"general.language", c.General.Language, "auto"},
+		{"alerts.mode", c.Alerts.Mode, "notify"},
+		{"alerts.score_threshold", c.Alerts.ScoreThreshold, 0.7},
+		{"checkin.actions", c.Checkin.Actions, true},
+		{"ingest.poll_interval", c.Ingest.PollInterval, 10 * time.Second},
+		{"ingest.idle_gap", c.Ingest.IdleGap, 5 * time.Minute},
+		{"ingest.count_subagents_as_parallel", c.Ingest.CountSubagentsAsParallel, false},
+		{"validation.min_pairs", c.Validation.MinPairs, 10},
 	}
 
 	for _, tt := range tests {
