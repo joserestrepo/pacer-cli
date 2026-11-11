@@ -26,6 +26,8 @@ func TestDefaults(t *testing.T) {
 		{"checkin.bad_day_min", c.Checkin.BadDayMin, 4},
 		{"alerts.enabled", c.Alerts.Enabled, true},
 		{"alerts.cooldown", c.Alerts.Cooldown, 60 * time.Minute},
+		{"general.day_starts_at", c.General.DayStartsAt, "04:00"},
+		{"general.language", c.General.Language, "auto"},
 	}
 
 	for _, tt := range tests {

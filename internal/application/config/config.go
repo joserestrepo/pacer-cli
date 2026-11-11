@@ -8,6 +8,7 @@ import (
 
 // Config is the configuration for the application.
 type Config struct {
+	General General
 	Budget  domain.Budget
 	Checkin Checkin
 	Alerts  Alerts
@@ -27,9 +28,19 @@ type Alerts struct {
 	Cooldown time.Duration
 }
 
+// General is the additional configuration for the application.
+type General struct {
+	DayStartsAt string // DayStartsAt is the time ("HH:MM") pacer starts a new day; work before it counts toward the previous day.
+	Language    string // Language is the language the user wants to use for the application.
+}
+
 // Defaults returns the values for the config by default. It is used when the user sets nothing in the config file.
 func Defaults() Config {
 	return Config{
+		General: General{
+			DayStartsAt: "04:00",
+			Language:    "auto", // "auto" means "use the system language"
+		},
 		Budget: domain.Budget{
 			ActiveHours:          6,
 			MaxParallel:          2,
