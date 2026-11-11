@@ -6,6 +6,14 @@ import (
 	"github.com/joserestrepo/pacer-cli/internal/domain"
 )
 
+// Config is the configuration for the application.
+type Config struct {
+	Budget  domain.Budget
+	Checkin Checkin
+	Alerts  Alerts
+}
+
+// Checkin is the configuration for the check-in feature.
 type Checkin struct {
 	Reminder      bool
 	ReminderAt    string
@@ -13,17 +21,13 @@ type Checkin struct {
 	BadDayMin     int
 }
 
+// Alerts is the configuration for the alerts feature.
 type Alerts struct {
 	Enabled  bool
 	Cooldown time.Duration
 }
 
-type Config struct {
-	Budget  domain.Budget
-	Checkin Checkin
-	Alerts  Alerts
-}
-
+// Defaults returns the values for the config by default. It is used when the user sets nothing in the config file.
 func Defaults() Config {
 	return Config{
 		Budget: domain.Budget{
@@ -35,7 +39,7 @@ func Defaults() Config {
 		},
 		Checkin: Checkin{
 			Reminder:      true,
-			ReminderAt:    "",
+			ReminderAt:    "", // empty means "use the budget cutoff time"
 			StartReminder: true,
 			BadDayMin:     4,
 		},
