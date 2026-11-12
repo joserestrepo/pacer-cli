@@ -47,5 +47,12 @@ var Keys = []Key{
 	{Path: "ingest.poll_interval", Kind: KindDuration, Get: func(c Config) any { return c.Ingest.PollInterval }},
 	{Path: "ingest.idle_gap", Kind: KindDuration, Get: func(c Config) any { return c.Ingest.IdleGap }},
 	{Path: "ingest.count_subagents_as_parallel", Kind: KindBool, Get: func(c Config) any { return c.Ingest.CountSubagentsAsParallel }},
+	{Path: "scoring.evaluate_every", Kind: KindDuration, Get: func(c Config) any { return c.Scoring.EvaluateEvery }},
+	{Path: "scoring.baseline_days", Kind: KindInt, Get: func(c Config) any { return c.Scoring.BaselineDays }},
+	{Path: "scoring.min_baseline_days", Kind: KindInt, Get: func(c Config) any { return c.Scoring.MinBaselineDays }},
+	{Path: "scoring.weights.hours", Kind: KindFloat, Get: func(c Config) any { return c.Scoring.Weights.Hours }},
+	{Path: "scoring.weights.parallel", Kind: KindFloat, Get: func(c Config) any { return c.Scoring.Weights.Parallel }},
+	{Path: "scoring.weights.late", Kind: KindFloat, Get: func(c Config) any { return c.Scoring.Weights.Late }},
+	{Path: "scoring.weights.focus", Kind: KindFloat, Get: func(c Config) any { return c.Scoring.Weights.Focus }},
 	{Path: "validation.min_pairs", Kind: KindInt, Get: func(c Config) any { return c.Validation.MinPairs }},
 }

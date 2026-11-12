@@ -35,6 +35,13 @@ func TestDefaults(t *testing.T) {
 		{"ingest.idle_gap", c.Ingest.IdleGap, 5 * time.Minute},
 		{"ingest.count_subagents_as_parallel", c.Ingest.CountSubagentsAsParallel, false},
 		{"validation.min_pairs", c.Validation.MinPairs, 10},
+		{"scoring.evaluate_every", c.Scoring.EvaluateEvery, 60 * time.Second},
+		{"scoring.baseline_days", c.Scoring.BaselineDays, 28},
+		{"scoring.min_baseline_days", c.Scoring.MinBaselineDays, 7},
+		{"scoring.weights.hours", c.Scoring.Weights.Hours, 1.0},
+		{"scoring.weights.parallel", c.Scoring.Weights.Parallel, 1.0},
+		{"scoring.weights.late", c.Scoring.Weights.Late, 1.0},
+		{"scoring.weights.focus", c.Scoring.Weights.Focus, 1.0},
 	}
 
 	for _, tt := range tests {

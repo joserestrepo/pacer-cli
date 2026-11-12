@@ -17,6 +17,7 @@ type Config struct {
 	Alerts     Alerts
 	Checkin    Checkin
 	Ingest     Ingest
+	Scoring    Scoring
 	Validation Validation
 }
 
@@ -76,6 +77,22 @@ type Ingest struct {
 	CountSubagentsAsParallel bool
 }
 
+// Scoring controls how pacer turns the day's activity into a score.
+type Scoring struct {
+	// EvaluateEvery is how often the daemon recomputes the score and decides
+	// whether to alert.
+	EvaluateEvery time.Duration
+	// BaselineDays is how many past days form the personal baseline that
+	// today is compared against.
+	BaselineDays int
+	// MinBaselineDays is the minimum number of active days in that window
+	// before the baseline influences the score; below it, only the budget
+	// decides.
+	MinBaselineDays int
+	// Weights sets how much each budget signal counts toward the score.
+	Weights domain.Weights
+}
+
 // Validation controls the metrics that check whether pacer's score matches
 // how tired the user reports feeling.
 type Validation struct {
@@ -116,6 +133,17 @@ func Defaults() Config {
 			PollInterval:             10 * time.Second,
 			IdleGap:                  5 * time.Minute,
 			CountSubagentsAsParallel: false,
+		},
+		Scoring: Scoring{
+			EvaluateEvery:   60 * time.Second,
+			BaselineDays:    28,
+			MinBaselineDays: 7,
+			Weights: domain.Weights{
+				Hours:    1.0,
+				Parallel: 1.0,
+				Late:     1.0,
+				Focus:    1.0,
+			},
 		},
 		Validation: Validation{
 			MinPairs: 10,

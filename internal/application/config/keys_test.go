@@ -7,17 +7,30 @@ import (
 	"time"
 )
 
-// Every field of every section in Config must have exactly one Key.
-// If someone adds a field to Config and forgets its Key, this test fails.
+// Every leaf field of Config must have exactly one Key. A leaf is a field
+// that is not itself a section, so nested sections such as Scoring.Weights
+// are counted field by field. If someone adds a field to Config and forgets
+// its Key, this test fails.
 func TestKeysCoverEveryConfigField(t *testing.T) {
-	want := 0
-	for _, section := range reflect.VisibleFields(reflect.TypeOf(Config{})) {
-		want += section.Type.NumField()
-	}
+	want := countLeaves(reflect.TypeOf(Config{}))
 
 	if len(Keys) != want {
-		t.Errorf("len(Keys) = %d, want %d (one per Config field)", len(Keys), want)
+		t.Errorf("len(Keys) = %d, want %d (one per Config leaf field)", len(Keys), want)
 	}
+}
+
+// countLeaves counts the non-struct fields of t, descending into struct
+// fields. It calls itself for each nested section: that is recursion.
+func countLeaves(t reflect.Type) int {
+	n := 0
+	for _, f := range reflect.VisibleFields(t) {
+		if f.Type.Kind() == reflect.Struct {
+			n += countLeaves(f.Type)
+		} else {
+			n++
+		}
+	}
+	return n
 }
 
 func TestKeyPathsAreUnique(t *testing.T) {
@@ -53,21 +66,25 @@ func TestKeyKindMatchesValueType(t *testing.T) {
 }
 
 // Every Path must name its field: "checkin.bad_day_min" must read
-// Config.Checkin.BadDayMin. This catches typos such as "checkin.bad_day".
+// Config.Checkin.BadDayMin, and "scoring.weights.hours" must read
+// Config.Scoring.Weights.Hours. This catches typos such as "checkin.bad_day".
 func TestKeyPathNamesItsField(t *testing.T) {
 	c := reflect.ValueOf(Defaults())
 	for _, k := range Keys {
 		t.Run(k.Path, func(t *testing.T) {
-			section, name, ok := strings.Cut(k.Path, ".")
-			if !ok {
+			parts := strings.Split(k.Path, ".")
+			if len(parts) < 2 {
 				t.Fatalf("path %q is not \"section.name\"", k.Path)
 			}
-			field := c.FieldByName(snakeToCamel(section)).FieldByName(snakeToCamel(name))
-			if !field.IsValid() {
-				t.Fatalf("no Config field %s.%s", snakeToCamel(section), snakeToCamel(name))
+			field := c
+			for _, p := range parts {
+				field = field.FieldByName(snakeToCamel(p))
+				if !field.IsValid() {
+					t.Fatalf("no Config field for %q (stopped at %q)", k.Path, p)
+				}
 			}
 			if got := k.Get(Defaults()); got != field.Interface() {
-				t.Errorf("Get returns %v, but field %s.%s is %v", got, snakeToCamel(section), snakeToCamel(name), field.Interface())
+				t.Errorf("Get returns %v, but the field is %v", got, field.Interface())
 			}
 		})
 	}
